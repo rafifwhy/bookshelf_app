@@ -1,9 +1,14 @@
+import 'dart:collection';
 import 'dart:convert';
 
 import 'package:bookshelf_app/pages/add_book_page.dart';
 import 'package:bookshelf_app/pages/book_detail_page.dart';
+import 'package:bookshelf_app/services/books_services.dart';
+import 'package:bookshelf_app/widgets/card_book.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+
+import '../utils/snackbar_helper.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -33,45 +38,26 @@ class _HomePageState extends State<HomePage> {
         child: Center(child: CircularProgressIndicator()),
         replacement: RefreshIndicator(
           onRefresh: fetchBook,
-          child: ListView.builder(
-              itemCount: books.length,
-              itemBuilder: (context, index) {
-                final book = books[index] as Map;
-                return InkWell(
-                  onTap: () {
-                    Navigator.push(context,
-                        MaterialPageRoute(builder: (context) {
-                      return BookDetailPage(book: book);
-                    }));
-                  },
-                  child: ListTile(
-                    leading: CircleAvatar(child: Text('${index + 1}')),
-                    title: Text(book['title']),
-                    subtitle: Text(book['year'] +
-                        ' | ' +
-                        book['publisher'] +
-                        ' | ' +
-                        book['author']),
-                    trailing: PopupMenuButton(
-                      onSelected: (value) {
-                        if (value == 'edit') {
-                          //Edit Book
-                          navToEditBook(book);
-                        } else if (value == 'delete') {
-                          //Delete Book
-                          deleteBook(book['id']);
-                        }
-                      },
-                      itemBuilder: (context) {
-                        return [
-                          PopupMenuItem(child: Text('Edit'), value: 'edit'),
-                          PopupMenuItem(child: Text('Delete'), value: 'delete')
-                        ];
-                      },
-                    ),
-                  ),
-                );
-              }),
+          child: Visibility(
+            visible: books.isNotEmpty,
+            replacement: Center(
+                child: Text(
+              'Belum ada buku yang terdaftar!',
+              style: Theme.of(context).textTheme.headline6,
+            )),
+            child: ListView.builder(
+                itemCount: books.length,
+                padding: EdgeInsets.all(8),
+                itemBuilder: (context, index) {
+                  final book = books[index] as Map;
+                  return BookCard(
+                    index: index,
+                    book: book,
+                    navToEdit: navToEditBook,
+                    navToDelete: deleteBook,
+                  );
+                }),
+          ),
         ),
       ),
       floatingActionButton: FloatingActionButton.extended(
@@ -107,57 +93,32 @@ class _HomePageState extends State<HomePage> {
 
   //Delete Book By ID
   Future<void> deleteBook(String id) async {
-    //Delete book
-    final url = 'http://192.168.100.8:5000/books/${id}';
-    final uri = Uri.parse(url);
-
-    final response = await http.delete(uri);
-
-    if (response.statusCode == 200) {
+    final isSuccess = await BooksService.deleteBook(id);
+    if (isSuccess) {
       //Delete book from the list
       final deletedBook =
           books.where((element) => element['id'] != id).toList();
       setState(() {
         books = deletedBook;
       });
-      showSuccessSnackbar('Buku berhasil dihapus!');
+      showSuccessSnackbar(context, message: 'Buku berhasil dihapus!');
     } else {
-      showErrorSnackbar('Buku gagal dihapus!');
+      showErrorSnackbar(context, message: 'Buku gagal dihapus!');
     }
   }
 
   //Getting all book
   Future<void> fetchBook() async {
-    final url = 'http://192.168.100.8:5000/books';
-    final uri = Uri.parse(url);
-
-    final response = await http.get(uri);
-
-    if (response.statusCode == 200) {
-      final json = jsonDecode(response.body) as Map;
-      final result = json['data']['books'] as List;
+    final response = await BooksService.fetchBooks();
+    if (response != null) {
       setState(() {
-        books = result;
+        books = response;
       });
+    } else {
+      showErrorSnackbar(context, message: 'Gagal menampilkan list buku!');
     }
     setState(() {
       isLoading = false;
     });
-  }
-
-  void showSuccessSnackbar(String message) {
-    final snackBar = SnackBar(content: Text(message));
-    ScaffoldMessenger.of(context).showSnackBar(snackBar);
-  }
-
-  void showErrorSnackbar(String message) {
-    final snackBar = SnackBar(
-      content: Text(
-        message,
-        style: TextStyle(color: Colors.white),
-      ),
-      backgroundColor: Colors.red,
-    );
-    ScaffoldMessenger.of(context).showSnackBar(snackBar);
   }
 }

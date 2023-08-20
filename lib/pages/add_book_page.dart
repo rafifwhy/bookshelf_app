@@ -1,7 +1,10 @@
 import 'dart:convert';
 
+import 'package:bookshelf_app/services/books_services.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+
+import '../utils/snackbar_helper.dart';
 
 class AddBookPage extends StatefulWidget {
   final Map? book;
@@ -71,77 +74,51 @@ class _AddBookPageState extends State<AddBookPage> {
   Future<void> updateBook() async {
     final book = widget.book;
     if (book == null) {
-      showErrorSnackbar('Tidak bisa melakukan edit buku!');
+      showErrorSnackbar(context, message: 'Tidak bisa melakukan edit buku!');
       return;
     }
     final id = book['id'];
-    final title = titleController.text;
-    final year = yearController.text;
-    final publisher = publisherController.text;
-    final author = authorController.text;
-    final body = {
-      "title": title,
-      "year": year,
-      "publisher": publisher,
-      "author": author
-    };
 
     final url =
         'http://192.168.100.8:5000/books/${id}'; //Change into current IP
     final uri = Uri.parse(url);
-    final response = await http.put(uri,
-        body: jsonEncode(body), headers: {'Content-Type': 'application/json'});
-
-    if (response.statusCode == 200) {
-      showSuccessSnackbar('Berhasil memperbarui buku!');
+    final isSuccess = await BooksService.updateBook(id, body);
+    if (isSuccess) {
+      showSuccessSnackbar(context, message: 'Berhasil memperbarui buku!');
     } else {
-      showErrorSnackbar('Gagal memperbarui buku!');
+      showErrorSnackbar(context, message: 'Gagal memperbarui buku!');
     }
   }
 
   Future<void> addBook() async {
+    //Add book
+    final url = 'http://192.168.100.8:5000/books'; //Change into current IP
+    final uri = Uri.parse(url);
+    final isSuccess = await BooksService.addBook(body);
+
+    //Show messages
+    if (isSuccess) {
+      titleController.text = '';
+      yearController.text = '';
+      publisherController.text = '';
+      authorController.text = '';
+      showSuccessSnackbar(context, message: 'Buku berhasil ditambahkan!');
+    } else {
+      showErrorSnackbar(context, message: 'Buku gagal ditambahkan!');
+    }
+  }
+
+  Map get body {
     //Get book data from page form
     final title = titleController.text;
     final year = yearController.text;
     final publisher = publisherController.text;
     final author = authorController.text;
-    final body = {
+    return {
       "title": title,
       "year": year,
       "publisher": publisher,
       "author": author
     };
-
-    //Add book
-    final url = 'http://192.168.100.8:5000/books'; //Change into current IP
-    final uri = Uri.parse(url);
-    final response = await http.post(uri,
-        body: jsonEncode(body), headers: {'Content-Type': 'application/json'});
-    //Show messages
-    if (response.statusCode == 201) {
-      titleController.text = '';
-      yearController.text = '';
-      publisherController.text = '';
-      authorController.text = '';
-      showSuccessSnackbar('Buku berhasil ditambahkan!');
-    } else {
-      showErrorSnackbar('Buku gagal ditambahkan!');
-    }
-  }
-
-  void showSuccessSnackbar(String message) {
-    final snackBar = SnackBar(content: Text(message));
-    ScaffoldMessenger.of(context).showSnackBar(snackBar);
-  }
-
-  void showErrorSnackbar(String message) {
-    final snackBar = SnackBar(
-      content: Text(
-        message,
-        style: TextStyle(color: Colors.white),
-      ),
-      backgroundColor: Colors.red,
-    );
-    ScaffoldMessenger.of(context).showSnackBar(snackBar);
   }
 }
